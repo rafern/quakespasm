@@ -22,6 +22,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // This is enables a simple IP banning mechanism
 #define BAN_TEST
 
+#define NET_DEBUG_CONNS
+
 #include "q_stdinc.h"
 #include "arch_def.h"
 #include "net_sys.h"
@@ -62,12 +64,9 @@ static qboolean m_portords[MAX_SCOREBOARD];
 
 static char *StrAddr (struct qsockaddr *addr)
 {
-	static char buf[34];
-	byte *p = (byte *)addr;
-	int n;
-
-	for (n = 0; n < 16; n++)
-		sprintf (buf + n * 2, "%02x", *p++);
+	static char buf[128];
+	inet_ntop(AF_INET, &(((struct sockaddr_in *)addr)->sin_addr), buf + 64, 64);
+	sprintf(buf, "%s:%u", buf + 64, (((struct sockaddr_in *)addr)->sin_port));
 	return buf;
 }
 
@@ -846,6 +845,10 @@ void Datagram_Shutdown (void)
 
 void Datagram_Close (qsocket_t *sock)
 {
+#ifdef NET_DEBUG_CONNS
+	Con_Printf("DEBUG closed; addr: %s\n", sock->address);
+#endif
+
 	if (sock->portOrdinal != -1)
 	{
 		m_portords[sock->portOrdinal] = false;
@@ -1125,6 +1128,13 @@ static qsocket_t *_Datagram_CheckNewConnections (void)
 	sock->landriver = net_landriverlevel;
 	sock->addr = clientaddr;
 	Q_strcpy(sock->address, dfunc.AddrToString(&clientaddr));
+
+#ifdef NET_DEBUG_CONNS
+	if (nextportord == MAX_SCOREBOARD)
+		Con_Printf("DEBUG connected; addr: %s, randomly assigned port: %i\n", sock->address, port);
+	else
+		Con_Printf("DEBUG connected; addr: %s, assigned port: %i, port ordinal: %i\n", sock->address, port, nextportord);
+#endif
 
 	// send him back the info about the server connection he has been allocated
 	SZ_Clear(&net_message);
